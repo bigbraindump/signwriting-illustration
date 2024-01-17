@@ -24,6 +24,8 @@ DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 def signwriting_file_to_image(fsw_file: Path, output: Union[str, Path], size=512):
     # Open signwriting image
     signwriting = Image.open(fsw_file)
+    w, h = signwriting.size
+    signwriting = signwriting.resize((w * 2, h * 2), Image.NEAREST)
     if signwriting.width > size or signwriting.height > size:
         raise Exception(f"{fsw_file} is too large (> {size})")
 

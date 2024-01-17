@@ -8,16 +8,23 @@ from signwriting.visualizer.visualize import signwriting_to_image
 def signwriting_to_sized_image(fsw: str, output: Union[str, Path], size=512):
     output_im = signwriting_to_image(fsw)
 
+    initial_size = size // 2
+    if output_im.width > initial_size or output_im.height > initial_size:
+        raise Exception(f"{fsw} is too large (> {initial_size})")
+
     # Create a 512x512 RGB image with a white background
-    im = Image.new('RGB', (size, size), (255, 255, 255))
+    im = Image.new('RGB', (initial_size, initial_size), (255, 255, 255))
 
     # Calculate the position to paste the image so that it's centered
-    x_offset = (size - output_im.width) // 2
-    y_offset = (size - output_im.height) // 2
+    x_offset = (initial_size - output_im.width) // 2
+    y_offset = (initial_size - output_im.height) // 2
     offset = (x_offset, y_offset)
 
     # Paste the output_im image onto the white background
     im.paste(output_im, offset, output_im)
+
+    # Upscale the image to 512x512
+    im = im.resize((size, size), Image.NEAREST)
 
     im.save(output)
     return im
