@@ -8,7 +8,7 @@ from PIL import Image, UnidentifiedImageError
 from tqdm import tqdm
 from signwriting_images import signwriting_to_sized_image
 
-SIZE = 512
+SIZE = 256
 
 TRAIN_DIR = Path(__file__).parent.parent / "train"
 TRAIN_A_DIR = TRAIN_DIR / "A"
@@ -21,7 +21,7 @@ os.makedirs(TRAIN_B_DIR, exist_ok=True)
 DATASETS_DIR = Path(__file__).parent.parent / "datasets"
 
 
-def signwriting_file_to_image(fsw_file: Path, output: Union[str, Path], size=512):
+def signwriting_file_to_image(fsw_file: Path, output: Union[str, Path], size=256):
     # Open signwriting image
     signwriting = Image.open(fsw_file)
     if signwriting.width > size or signwriting.height > size:
