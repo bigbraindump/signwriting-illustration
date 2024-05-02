@@ -51,6 +51,11 @@ for dataset in DATASETS_DIR.iterdir():
         writings = json.load(f)
 
     for writing in tqdm(writings):
+        # skip 'fsw_file' entries from missing glossen directory
+        if "fsw_file" in writing:
+            skipped_files += 1
+            continue
+        
         illustration_path = dataset / writing["file"]
         if not illustration_path.exists():
             raise Exception(f"Illustration {illustration_path} does not exist")
