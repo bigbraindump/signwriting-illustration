@@ -1,10 +1,11 @@
 import os
 import json
-from xml.etree import ElementTree
 import re
 import csv
 
 from PIL import Image, UnidentifiedImageError
+
+from signwriting_matcher import convert_to_fsw
 
 
 def ascii_gloss(gloss: str):
@@ -51,20 +52,7 @@ lexicon.update(wortschatz)
 lexicon.update(gloss_map)
 
 
-def convert_to_fsw(layout_txt_content):
-    # Fixing img tags to be self-closing for XML parsing
-    layout_txt_content = re.sub(r'<img([^>]+)/?>', r'<img\1/>', layout_txt_content)
-    layout_txt_content = layout_txt_content.replace('&size=.7', '')
 
-    root = ElementTree.fromstring(layout_txt_content)
-    max_x, max_y = int(root.get('max_x')), int(root.get('max_y'))
-    fsw = f'M{max_x + 500}x{max_y + 500}'
-
-    for sym in root.findall('sym'):
-        key = sym.find('img').get('src').split('key=')[1]
-        left, top = int(sym.get('left')), int(sym.get('top'))
-        fsw += f'S{key}{left + 500}x{top + 500}'
-    return fsw
 
 
 def get_gloss_ids(gloss: str):

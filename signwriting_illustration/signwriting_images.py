@@ -13,7 +13,7 @@ def signwriting_to_sized_image(fsw: str, output: Union[str, Path], size=512):
         raise Exception(f"{fsw} is too large (> {initial_size})")
 
     # Create a 512x512 RGB image with a white background
-    im = Image.new('RGB', (initial_size, initial_size), (255, 255, 255))
+    img = Image.new('RGB', (initial_size, initial_size), (255, 255, 255))
 
     # Calculate the position to paste the image so that it's centered
     x_offset = (initial_size - output_im.width) // 2
@@ -21,13 +21,13 @@ def signwriting_to_sized_image(fsw: str, output: Union[str, Path], size=512):
     offset = (x_offset, y_offset)
 
     # Paste the output_im image onto the white background
-    im.paste(output_im, offset, output_im)
+    img.paste(output_im, offset, output_im)
 
     # Upscale the image to 512x512
-    im = im.resize((size, size), Image.NEAREST)
+    img = img.resize((size, size), Image.NEAREST)
 
-    im.save(output)
-    return im
+    img.save(output)
+    return img
 
 
 if __name__ == "__main__":

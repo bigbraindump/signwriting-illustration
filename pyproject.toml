@@ -30,7 +30,7 @@ disable = [
 ignore-paths = '^signwriting_illustration/controlnet/ControlNet/.*$'
 
 [tool.pylint.typecheck]
-generated-members = ["cv2.*"]
+generated-members = ["cv2.*", "PIL.Image.*"]
 
 [tool.setuptools]
 packages = [
