@@ -26,8 +26,11 @@ def signwriting_file_to_image(fsw_file: Path, output: Union[str, Path], size=256
     signwriting = Image.open(fsw_file)
     w, h = signwriting.size
     signwriting = signwriting.resize((w * 2, h * 2), Image.NEAREST)
+
     if signwriting.width > size or signwriting.height > size:
-        raise Exception(f"{fsw_file} is too large (> {size})")
+        # resize to fit 256x256
+        scale = size / max(signwriting.width, signwriting.height)
+        signwriting = signwriting.resize((int(signwriting.width * scale), int(signwriting.height * scale)), Image.NEAREST)
 
     # then paste it on a white background SIZExSIZE RGB image
     background = Image.new('RGB', (size, size), (255, 255, 255))
