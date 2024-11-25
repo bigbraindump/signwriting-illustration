@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=train-controlnet-hf
+#SBATCH --job-name=train-controlnet-scaled
 #SBATCH --time=168:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16GB
@@ -56,15 +56,14 @@ mkdir -p $OUTPUT_DIR
  --conditioning_image_column=control_image \
  --image_column=image \
  --caption_column=caption \
- --resolution=256 \
- --learning_rate=1e-5 \
+ --resolution=512 \
+ --learning_rate=1e-4 \
  --validation_image "./validation/0a4b3c71265bb3a726457837428dda78.png" "./validation/0a5922fe2c638e6776bd62f623145004.png" "./validation/1f0b36cd4699a80afaa8acc766b7a951.png" \
  --validation_prompt "An illustration of a man with short hair" "An illustration of a woman with short hair" "An illustration of Barack Obama" \
  --train_batch_size=4 \
  --num_train_epochs=500 \
- --tracker_project_name="sd-controlnet-signwriting" \
- --hub_model_id="sign/signwriting-illustration" \
- --enable_xformers_memory_efficient_attention \
+ --tracker_project_name="sd-controlnet-sw-scaled" \
+ --hub_model_id="sarahahtee/signwriting-illustration-scaled" \
  --checkpointing_steps=5000 \
  --validation_steps=1000 \
  --report_to wandb \
