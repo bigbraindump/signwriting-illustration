@@ -49,22 +49,23 @@ pip install ./diffusers
 OUTPUT_DIR="/scratch/$(whoami)/models/sd-controlnet-signwriting"
 mkdir -p $OUTPUT_DIR
 
-! accelerate launch diffusers/examples/controlnet/train_controlnet.py \
+! accelerate launch diffusers/examples/controlnet/train_controlnet_img2img.py \
  --pretrained_model_name_or_path="runwayml/stable-diffusion-v1-5" \
  --output_dir="$OUTPUT_DIR" \
  --train_data_dir="$HF_DATASET_DIR" \
  --conditioning_image_column=control_image \
+ --init_image_column=init_image \
  --image_column=image \
  --caption_column=caption \
- --resolution=256 \
+ --resolution=512 \
  --learning_rate=1e-5 \
+ --init_image_strength=0.8 \
  --validation_image "./validation/0a4b3c71265bb3a726457837428dda78.png" "./validation/0a5922fe2c638e6776bd62f623145004.png" "./validation/1f0b36cd4699a80afaa8acc766b7a951.png" \
  --validation_prompt "An illustration of a man with short hair" "An illustration of a woman with short hair" "An illustration of Barack Obama" \
  --train_batch_size=4 \
  --num_train_epochs=500 \
- --tracker_project_name="sd-controlnet-signwriting" \
- --hub_model_id="sign/signwriting-illustration" \
- --enable_xformers_memory_efficient_attention \
+ --tracker_project_name="sd-controlnet-signwriting-img2img" \
+ --hub_model_id="sarahahte/signwriting-illustration-img2img" \
  --checkpointing_steps=5000 \
  --validation_steps=1000 \
  --report_to wandb \

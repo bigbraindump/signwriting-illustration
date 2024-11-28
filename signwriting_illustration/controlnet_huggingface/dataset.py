@@ -22,8 +22,9 @@ class SignWritingIllustrationDataset(datasets.GeneratorBasedBuilder):
             dataset_name="sw_illustration_hf",
             features=datasets.Features(
                 {
-                    "control_image": datasets.Image(),
-                    "image": datasets.Image(),
+                    "control_image": datasets.Image(),                  # signwriting for ControlNet
+                    "init_image": datasets.Image(),                     # white image for SD
+                    "image": datasets.Image(),                          # target illustration
                     "caption": datasets.Value(dtype='string', id=None)
                 }
             )
@@ -34,17 +35,22 @@ class SignWritingIllustrationDataset(datasets.GeneratorBasedBuilder):
             datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={})
         ]
 
+    def _create_white_init_image(self, width, height):
+        return Image.new('RGB', (width, height), color='white')
+
     def _generate_examples(self, **unused_kwargs):
         for i, item in enumerate(self.data):
             try:
-                signwriting = Image.open(str(self.train_path / item['source']))
-                illustration = Image.open(str(self.train_path / item['target']))
+                signwriting = Image.open(str(self.train_path / item['source'])).convert('RGB')
+                illustration = Image.open(str(self.train_path / item['target'])).convert('RGB')
+                init_image = self._create_white_init_image(illustration.size[0], illustration.size[1])
             except (FileNotFoundError):
                 self.skipped_images += 1
                 continue
 
             yield i, {
                 "control_image": signwriting,
+                "init_image": init_image,
                 "image": illustration,
                 "caption": item['prompt']
             }
@@ -64,6 +70,7 @@ if __name__ == "__main__":
     output_path = Path(args.output_path)
 
     output_path.mkdir(parents=True, exist_ok=True)
+    output_path = str(output_path)
 
     dataset = SignWritingIllustrationDataset(train_path)
     dataset.download_and_prepare(output_path)

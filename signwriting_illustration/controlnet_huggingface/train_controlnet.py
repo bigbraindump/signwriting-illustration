@@ -124,6 +124,8 @@ def log_validation(
             "number of `args.validation_image` and `args.validation_prompt` should be checked in `parse_args`"
         )
 
+    white_image = Image.new('RGB', (args.resolution, args.resolution), 'white')
+
     image_logs = []
     inference_ctx = contextlib.nullcontext() if is_final_validation else torch.autocast("cuda")
 
@@ -135,13 +137,21 @@ def log_validation(
         for _ in range(args.num_validation_images):
             with inference_ctx:
                 image = pipeline(
-                    validation_prompt, validation_image, num_inference_steps=20, generator=generator
+                    validation_prompt,
+                    image=white_image,
+                    control_image=validation_image,
+                    strength= 1.0 - args.init_image_strength,
+                    num_inference_steps=20,
+                    generator=generator
                 ).images[0]
 
             images.append(image)
 
         image_logs.append(
-            {"validation_image": validation_image, "images": images, "validation_prompt": validation_prompt}
+            {"validation_image": validation_image,
+            "init_image": white_image,
+            "images": images,
+            "validation_prompt": validation_prompt}
         )
 
     tracker_key = "test" if is_final_validation else "validation"
@@ -361,6 +371,12 @@ def parse_args(input_args=None):
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument(
+        "--init_image_strength", 
+        type=float, 
+        default=1.0,
+        help="Strength of init image conditioning (0-1). Lower values allow more deviation from init image."
+    )
+    parser.add_argument(
         "--scale_lr",
         action="store_true",
         default=False,
@@ -494,6 +510,12 @@ def parse_args(input_args=None):
         help="The column of the dataset containing the controlnet conditioning image.",
     )
     parser.add_argument(
+        "--init_image_column",
+        type=str,
+        default="init_image",
+        help="The column of the dataset containing the SD img2img initialization image."
+    )
+    parser.add_argument(
         "--caption_column",
         type=str,
         default="text",
@@ -582,6 +604,9 @@ def parse_args(input_args=None):
 
     if args.validation_prompt is None and args.validation_image is not None:
         raise ValueError("`--validation_prompt` must be set if `--validation_image` is set")
+
+    if args.init_image_strength < 0 or args.init_image_strength > 1:
+        raise ValueError("`--init_image_strength` must be in the range [0, 1]")
 
     if (
         args.validation_image is not None
@@ -694,14 +719,21 @@ def make_train_dataset(args, tokenizer, accelerator):
     )
 
     def preprocess_train(examples):
+        # target image 
         images = [image.convert("RGB") for image in examples[image_column]]
         images = [image_transforms(image) for image in images]
 
+        # condition for controlnet
         conditioning_images = [image.convert("RGB") for image in examples[conditioning_image_column]]
         conditioning_images = [conditioning_image_transforms(image) for image in conditioning_images]
 
+        # init for SD img2img
+        init_images = [image.convert("RGB") for image in examples[args.init_image_column]]
+        init_images = [conditioning_image_transforms(image) for image in init_images]
+        
         examples["pixel_values"] = images
         examples["conditioning_pixel_values"] = conditioning_images
+        examples["init_pixel_values"] = init_images
         examples["input_ids"] = tokenize_captions(examples)
 
         return examples
@@ -722,11 +754,15 @@ def collate_fn(examples):
     conditioning_pixel_values = torch.stack([example["conditioning_pixel_values"] for example in examples])
     conditioning_pixel_values = conditioning_pixel_values.to(memory_format=torch.contiguous_format).float()
 
+    init_pixel_values = torch.stack([example["init_pixel_values"] for example in examples])
+    init_pixel_values = init_pixel_values.to(memory_format=torch.contiguous_format).float()
+
     input_ids = torch.stack([example["input_ids"] for example in examples])
 
     return {
         "pixel_values": pixel_values,
         "conditioning_pixel_values": conditioning_pixel_values,
+        "init_pixel_values": init_pixel_values,
         "input_ids": input_ids,
     }
 
@@ -1032,20 +1068,27 @@ def main(args):
     for epoch in range(first_epoch, args.num_train_epochs):
         for step, batch in enumerate(train_dataloader):
             with accelerator.accumulate(controlnet):
-                # Convert images to latent space
-                latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
-                latents = latents * vae.config.scaling_factor
+                # target image latents
+                target_latents = vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
+                target_latents = target_latents * vae.config.scaling_factor
+
+                # init imaeg latents
+                init_latents = vae.encode(batch["init_pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
+                init_latents = init_latents * vae.config.scaling_factor
 
                 # Sample noise that we'll add to the latents
-                noise = torch.randn_like(latents)
-                bsz = latents.shape[0]
+                noise = torch.randn_like(init_latents)
+                bsz = init_latents.shape[0]
                 # Sample a random timestep for each image
-                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
+                timesteps = torch.randint(0, noise_scheduler.config.num_train_timesteps, (bsz,), device=init_latents.device)
                 timesteps = timesteps.long()
+
+                noise_strength = 1.0 - args.init_image_strength
+                scaled_noise = noise * (1 + noise_strength)
 
                 # Add noise to the latents according to the noise magnitude at each timestep
                 # (this is the forward diffusion process)
-                noisy_latents = noise_scheduler.add_noise(latents.float(), noise.float(), timesteps).to(
+                noisy_latents = noise_scheduler.add_noise(init_latents.float(), scaled_noise.float(), timesteps).to(
                     dtype=weight_dtype
                 )
 
@@ -1076,9 +1119,9 @@ def main(args):
 
                 # Get the target for loss depending on the prediction type
                 if noise_scheduler.config.prediction_type == "epsilon":
-                    target = noise
+                    target = scaled_noise
                 elif noise_scheduler.config.prediction_type == "v_prediction":
-                    target = noise_scheduler.get_velocity(latents, noise, timesteps)
+                    target = noise_scheduler.get_velocity(init_latents, scaled_noise, timesteps)
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
                 loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
